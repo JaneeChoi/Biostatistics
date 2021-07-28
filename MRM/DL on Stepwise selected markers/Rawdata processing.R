@@ -1,0 +1,461 @@
+
+# MRM data analysis -------------------------------------------------------
+
+rm(list = ls())
+source("./function.R")
+source("./LR_bidirectional_p_value.R")
+# chooseCRANmirror()
+
+if (!requireNamespace("parallel", quietly = TRUE)){
+  install.packages("parallel")
+}
+if (!requireNamespace("stringr", quietly = TRUE)){
+  install.packages("stringr")
+}
+if (!requireNamespace("ggplot2", quietly = TRUE)){
+  install.packages("ggplot2")
+}
+if (!requireNamespace("readr", quietly = TRUE)){
+  install.packages("readr")
+}
+if (!requireNamespace("dplyr", quietly = TRUE)){
+  install.packages("dplyr")
+}
+if (!requireNamespace("glmnet", quietly = TRUE)){
+  install.packages("glmnet")
+}
+if (!requireNamespace("pROC", quietly = TRUE)){
+  install.packages("pROC")
+}
+if (!requireNamespace("gridExtra", quietly = TRUE)){
+  install.packages("gridExtra")
+}
+if (!requireNamespace("splines", quietly = TRUE)){
+  install.packages("splines")
+}
+if (!requireNamespace("mgcv", quietly = TRUE)){
+  install.packages("mgcv")
+}
+if (!requireNamespace("readxl", quietly = TRUE)){
+  install.packages("readxl")
+}
+if (!requireNamespace("latex2exp", quietly = TRUE)){
+  install.packages("latex2exp")
+}
+if (!requireNamespace("microbenchmark", quietly = TRUE)){
+  install.packages("microbenchmark")
+}
+if (!requireNamespace("rms", quietly = TRUE)){
+  install.packages("rms")
+}
+if (!requireNamespace("MASS", quietly = TRUE)){
+  install.packages("MASS")
+}
+if (!requireNamespace("randomForest", quietly = TRUE)){
+  install.packages("randomForest")
+}
+if (!requireNamespace("e1071", quietly = TRUE)){
+  install.packages("e1071")
+}
+
+library(parallel)
+library(stringr)
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(glmnet)
+library(pROC)
+library(gridExtra)
+library(splines)
+library(mgcv)
+library(readxl)
+library(microbenchmark)
+library(rms)
+library(MASS)
+library(randomForest)
+library(e1071)
+
+# Data import -------------------------------------------------------------
+
+setwd("C:/Users/serim/Documents/academic/인턴/BIBS/MRM/DL_classification")
+aacrdata = readxl::read_excel('Data/aacr_supplementary_data.xlsx')
+rawdata = readr::read_csv("Data/rawdata.csv", col_types = cols(
+  X = col_character(),
+  batch = col_factor(),
+  type = col_character(),
+  CA19_9 = col_double(),
+  AADDTWEPFASGK = col_double(),
+  AGFSWIEVTFK = col_double(),
+  ALAPEYAK = col_double(),
+  ALAQCAPPPAVCAELVR = col_double(),
+  ALLAFQESK = col_double(),
+  ASCLYGQLPK = col_double(),
+  ASSIIDELFQDR = col_double(),
+  CDENILWLDYK = col_double(),
+  CDLISIPK = col_double(),
+  CINQLLCK = col_double(),
+  CMPTFQFFK = col_double(),
+  DGYLFQLLR = col_double(),
+  DLLLPQPDLR = col_double(),
+  DPTFIPAPIQAK = col_double(),
+  DSVTGTLPK = col_double(),
+  DTEVLLVGLEPGTR = col_double(),
+  DYFIATCK = col_double(),
+  EFGNTLEDK = col_double(),
+  ELLALIQLER = col_double(),
+  EPAVLELEGK = col_double(),
+  EWFSETFQK = col_double(),
+  FAVLQENVAWGNGR = col_double(),
+  FLEQECNVLPLK = col_double(),
+  FQASVATPR = col_double(),
+  GDIGETGVPGAEGPR = col_double(),
+  GDSVSDSGSDALR = col_double(),
+  GEWVALNPLR = col_double(),
+  GFLLLASLR = col_double(),
+  GFQQLLQELNQPR = col_double(),
+  GGSASTWLTAFALR = col_double(),
+  GLIDLTLDK = col_double(),
+  GLPGEVLGAQPGPR = col_double(),
+  GLTSVINQK = col_double(),
+  ICLDPDAPR = col_double(),
+  IEDGFSLK = col_double(),
+  ILLAELEQLK = col_double(),
+  ILSGDPYCEK = col_double(),
+  IQPSGGTNINEALLR = col_double(),
+  IVVVTAGVR = col_double(),
+  LALDNGGLAR = col_double(),
+  LIQGAPTIR = col_double(),
+  LLGIETPLPK = col_double(),
+  LSFQEFLK = col_double(),
+  LSLEIEQLELQR = col_double(),
+  LSNNALSGLPQGVFGK = col_double(),
+  LSSGLVTAALYGR = col_double(),
+  NADYSYSVWK = col_double(),
+  NIQSLEVIGK = col_double(),
+  NNLELSTPLK = col_double(),
+  NVLVTLYER = col_double(),
+  QGIQFYTQLK = col_double(),
+  SPAYTLVWTR = col_double(),
+  TGESVEFVCK = col_double(),
+  TIVTTLQDSIR = col_double(),
+  TLLSNLEEAK = col_double(),
+  TLNICEVGTIR = col_double(),
+  TNFDNDIALVR = col_double(),
+  TWYPEVPK = col_double(),
+  VAAGAFQGLR = col_double(),
+  VAEGTQVLELPFK = col_double(),
+  VCPFAGILENGAVR = col_double(),
+  VFSLQWGEVK = col_double(),
+  VLDVNDNAPK = col_double(),
+  VLFYVDSEK = col_double(),
+  VSTLPAITLK = col_double(),
+  VTGVVLFR = col_double(),
+  VTLNGVPAQPLGPR = col_double(),
+  YGQPLPGYTTK = col_double())
+)
+
+# Data pre-processing -----------------------------------------------------
+
+predictor_out = c('ALAPEYAK', 'CMPTFQFFK', 'EPAVLELEGK', 'FLEQECNVLPLK', 'GDSVSDSGSDALR', 'LSFQEFLK', 'NVLVTLYER', 'QGIQFYTQLK', 'SPAYTLVWTR', 'VLDVNDNAPK', 'VTLNGVPAQPLGPR')
+predictor_patent = c('AADDTWEPFASGK',
+                     'GFQQLLQELNQPR',
+                     'DSVTGTLPK',
+                     'LIQGAPTIR',
+                     'ASSIIDELFQDR',
+                     'NADYSYSVWK',
+                     'CINQLLCK',
+                     'NNLELSTPLK',
+                     'DLLLPQPDLR',
+                     'AGFSWIEVTFK',
+                     'VFSLQWGEVK',
+                     'DYFIATCK',
+                     'ILSGDPYCEK',
+                     'LSSGLVTAALYGR')
+predictor_aacr = c('AADDTWEPFASGK',
+                   'GFQQLLQELNQPR',
+                   'DSVTGTLPK',
+                   'LIQGAPTIR',
+                   'ASSIIDELFQDR',
+                   'NADYSYSVWK',
+                   'NIQSLEVIGK',
+                   'LLGIETPLPK',
+                   'ALLAFQESK',
+                   'LSLEIEQLELQR',
+                   'GLIDLTLDK',
+                   'ELLALIQLER',
+                   'ILLAELEQLK',
+                   'DTEVLLVGLEPGTR')
+predictor_union = c('AADDTWEPFASGK',
+                    'GFQQLLQELNQPR',
+                    'DSVTGTLPK',
+                    'LIQGAPTIR',
+                    'ASSIIDELFQDR',
+                    'NADYSYSVWK',
+                    'NIQSLEVIGK',
+                    'LLGIETPLPK',
+                    'ALLAFQESK',
+                    'LSLEIEQLELQR',
+                    'GLIDLTLDK',
+                    'ELLALIQLER',
+                    'ILLAELEQLK',
+                    'DTEVLLVGLEPGTR',
+                    'CINQLLCK',
+                    'NNLELSTPLK',
+                    'DLLLPQPDLR',
+                    'AGFSWIEVTFK',
+                    'VFSLQWGEVK',
+                    'DYFIATCK',
+                    'ILSGDPYCEK',
+                    'LSSGLVTAALYGR')
+predictor_union_bertis = c('AADDTWEPFASGK',
+                           'GFQQLLQELNQPR',
+                           'DSVTGTLPK',
+                           'LIQGAPTIR',
+                           'ASSIIDELFQDR',
+                           'NADYSYSVWK',
+                           'NIQSLEVIGK',
+                           'LLGIETPLPK',
+                           'ALLAFQESK',
+                           'LSLEIEQLELQR',
+                           'GLIDLTLDK',
+                           'ELLALIQLER',
+                           'ILLAELEQLK',
+                           'DTEVLLVGLEPGTR',
+                           'CINQLLCK',
+                           'NNLELSTPLK',
+                           'DLLLPQPDLR',
+                           'AGFSWIEVTFK',
+                           'VFSLQWGEVK',
+                           'DYFIATCK',
+                           'ILSGDPYCEK',
+                           'LSSGLVTAALYGR',
+                           'VSTLPAITLK',
+                           'GFLLLASLR',
+                           'TIVTTLQDSIR',
+                           'ASCLYGQLPK',
+                           'VAAGAFQGLR')
+
+rawdata %>% colnames() %>% .[-(1:4)] -> features
+features = sort(features)
+
+temp1 = lapply(colnames(aacrdata)[-(1:3)], FUN = function(x){return(strsplit(x, '_')[[1]][2])})
+temp1 = do.call(c, temp1)
+colnames(aacrdata)[-(1:3)] = temp1
+rm(temp1)
+colnames(aacrdata)[3] = 'CA19_9'
+
+features %>% .[!. %in% predictor_out] -> features
+
+rawdata[,c('X', 'batch', 'type', 'CA19_9', features)] -> rawdata
+rawdata %>% colnames() %>% .[-(1:3)] -> features
+
+rawdata %>% mutate(., Y = ifelse(type == 'PC', 1, 0), .after = batch) -> rawdata
+rawdata['Y'] = factor(rawdata[['Y']], levels = c(0, 1))
+aacrdata %>% mutate(., Y = ifelse(Type == 'Case', 1, 0), .after = Set) -> aacrdata
+aacrdata['Y'] = factor(aacrdata[['Y']], levels = c(0, 1))
+
+aacrdata %>% .[.[['Set']] == 'Training',] -> aacrtrain
+aacrdata %>% .[.[['Set']] == 'Validation',] -> aacrvalidation
+
+apply(rawdata, 2, is.na) %>% apply(., 2, sum) %>% sum()
+
+rawdata[!is.na(rawdata[['DTEVLLVGLEPGTR']]),] -> rawdata
+#rawdata[!is.na(rawdata[['NVLVTLYER']]),] -> rawdata
+
+{
+  rawdata_aacr = rawdata
+  identity = c('AGFSWIEVTFK', 'GGSASTWLTAFALR', 'LALDNGGLAR', 'TGESVEFVCK', 'VCPFAGILENGAVR')
+  logarithm = c('CA19_9', 'ASCLYGQLPK', 'CDENILWLDYK', 'CDLISIPK', 'ELLALIQLER',
+                'FAVLQENVAWGNGR', 'GFLLLASLR', 'ICLDPDAPR', 'NIQSLEVIGK', 'TIVTTLQDSIR',
+                'VTGVVLFR')
+  square_root = features[!features %in% c(identity, logarithm)]
+  rawdata_aacr[features][,identity] = rawdata_aacr[features][,identity]
+  rawdata_aacr[features][,logarithm] = log(rawdata_aacr[features][,logarithm]+1e-10)
+  rawdata_aacr[features][,square_root] = sqrt(rawdata_aacr[features][,square_root])
+}
+{
+  rawdata %>% .[!str_detect(.[['X']], '^AMC'),] %>% .[!str_detect(.[['type']], 'OC|OB'),] -> AACR_raw_tr
+  rawdata_aacr %>% .[!str_detect(.[['X']], '^AMC'),] %>% .[!str_detect(.[['type']], 'OC|OB'),] -> AACR_transformed_tr
+  rawdata %>% .[str_detect(.[['X']], '^AMC'),] -> AACR_raw_te
+  rawdata_aacr %>% .[str_detect(.[['X']], '^AMC'),] -> AACR_transformed_te
+}
+
+{
+  AACR_transformed_tr_stdtogether = AACR_transformed_tr
+  AACR_transformed_te_stdtogether = AACR_transformed_te
+  
+  train_mean = apply(AACR_transformed_tr_stdtogether[features], 2, mean)
+  train_sd = apply(AACR_transformed_tr_stdtogether[features], 2, sd)
+  
+  AACR_transformed_tr_stdtogether[features] = as.matrix(AACR_transformed_tr_stdtogether[features]) - (rep(1, nrow(AACR_transformed_tr_stdtogether)) %*% t(train_mean))
+  AACR_transformed_tr_stdtogether[features] = as.matrix(AACR_transformed_tr_stdtogether[features]) %*% diag(1/train_sd)
+  
+  AACR_transformed_te_stdtogether[features] = as.matrix(AACR_transformed_te_stdtogether[features]) - (rep(1, nrow(AACR_transformed_te_stdtogether)) %*% t(train_mean))
+  AACR_transformed_te_stdtogether[features] = as.matrix(AACR_transformed_te_stdtogether[features]) %*% diag(1/train_sd)
+}
+
+validation_index = c(
+  'SNU-NL145',
+  'NCC-PC049',
+  'SNU-NL133',
+  'SNU-PC058',
+  'SNU-PC536',
+  'SNU-PC067',
+  'NCC-PC041',
+  'SNU-NL224',
+  'SNU-NL063',
+  'NCC-PC047',
+  'SMC-PC072',
+  'NCC-PC039',
+  'SNU-NL351',
+  'SNU-PB002',
+  'SNU-PC071',
+  'NCC-PC126',
+  'SNU-NL416',
+  'SNU-NL367',
+  'SMC-PC090',
+  'SNU-NL118',
+  'SNU-NL267',
+  'NCC-PC077',
+  'SMC-PC069',
+  'SNU-NL105',
+  'YMC-PB020',
+  'NCC-PC117',
+  'SNU-NL176',
+  'YMC-PC012',
+  'SNU-NL124',
+  'SMC-PC081',
+  'SNU-NL412',
+  'NCC-PC076',
+  'NCC-PC055',
+  'SNU-NL396',
+  'SNU-NL041',
+  'SMC-PC079',
+  'SNU-NL304',
+  'SMC-PC049',
+  'YMC-PC001',
+  'SNU-NL152',
+  'SMC-PB016',
+  'SMC-PC033',
+  'SMC-PB030',
+  'SNU-NL062',
+  'SNU-NL148',
+  'SMC-PC046',
+  'SNU-NL090',
+  'SNU-NL075',
+  'SNU-NL222',
+  'SNU-NL070',
+  'NCC-PC026',
+  'YMC-PC050',
+  'SMC-PC016',
+  'YMC-PC025',
+  'SNU-NL192',
+  'NCC-PC138',
+  'SMC-PC032',
+  'SMC-PB011',
+  'SNU-PC521',
+  'SMC-PC024',
+  'NCC-PC079',
+  'SNU-PC507',
+  'SNU-NL038',
+  'NCC-PC085',
+  'SNU-NL406',
+  'NCC-PC087',
+  'SNU-PC506',
+  'SNU-NL052',
+  'SNU-PC063',
+  'YMC-PB026',
+  'NCC-PC131',
+  'SNU-NL081',
+  'SNU-NL243',
+  'SNU-NL112',
+  'SMC-PC042',
+  'YMC-PB030',
+  'SNU-NL119',
+  'SMC-PB001',
+  'SNU-NL324',
+  'SMC-PC041',
+  'SNU-NL227',
+  'SNU-PB020',
+  'SMC-PB018',
+  'SNU-NL082',
+  'YMC-PC038',
+  'SNU-NL297',
+  'NCC-PC119',
+  'YMC-PC045',
+  'NCC-PC021',
+  'YMC-PC004',
+  'SNU-NL221',
+  'SNU-NL432',
+  'SNU-NL299',
+  'SNU-PC530',
+  'SNU-NL048',
+  'SNU-PC505',
+  'SMC-PC099',
+  'SNU-NL120',
+  'SNU-NL352',
+  'SMC-PC055',
+  'NCC-PC037',
+  'SNU-PC537',
+  'SNU-NL044',
+  'SNU-NL308',
+  'NCC-PC023',
+  'NCC-PC027',
+  'SNU-NL355',
+  'SNU-NL295',
+  'SMC-PB007',
+  'SMC-PC018',
+  'SNU-NL341',
+  'SNU-NL384',
+  'SNU-NL051',
+  'SMC-PC026',
+  'YMC-PB006',
+  'NCC-PC094',
+  'NCC-PC097',
+  'SNU-NL346',
+  'SNU-NL237',
+  'SNU-NL064',
+  'SMC-PC011',
+  'SNU-NL080',
+  'SMC-PC014',
+  'SNU-NL001',
+  'SNU-NL144',
+  'NCC-PC088',
+  'SMC-PC028',
+  'SMC-PC038',
+  'SNU-NL086',
+  'SNU-NL335',
+  'SMC-PC054',
+  'NCC-PC024',
+  'SNU-NL068',
+  'YMC-PB011',
+  'SMC-PC043',
+  'SNU-NL363',
+  'SNU-NL380'
+)
+
+temp = AACR_transformed_tr_stdtogether[['X']] %in% validation_index
+
+AACR_transformed_tr_stdtogether %>% .[temp,] -> AACR_transformed_tr_stdtogether_validation
+AACR_transformed_tr_stdtogether %>% .[!temp,] -> AACR_transformed_tr_stdtogether_tr
+rm(temp)
+
+AACR_transformed_te_stdsolo = AACR_transformed_te
+AACR_transformed_te_stdsolo[features] = scale(AACR_transformed_te[features])
+
+# 데이터 설명 ------------------------------------------------------------------
+
+# rawdata : rawdata
+# rawdata_aacr : AACR 논문에서 제시된 데이터 변환을 rawdata에 해준 데이터
+# AACR_raw_te : rawdata 중에서 AMC 데이터
+# AACR_raw_tr : rawdata 중에서 train + validation 데이터
+# AACR_transformed_te : rawdata_aacr 중에서 AMC 데이터
+# AACR_transformed_tr : rawdata_aacr 중에서 train + validation 데이터
+# AACR_transformed_tr_stdtogether : AACR_transformed_tr 데이터를 표준화 한 데이터
+# AACR_transformed_te_stdtogether : AACR_transformed_tr 데이터 표준화에 사용된 평균과 표준편차로 표준화 한 데이터
+# AACR_transformed_te_stdsolo : AACR_transformed_te 데이터를 표준화 한 데이터
+# AACR_transformed_tr_stdtogether_tr : AACR_transformed_tr_stdtogether 중에서 train 데이터
+# AACR_transformed_tr_stdtogether_validation : AACR_transformed_tr_stdtogether 중에서 validation 데이터
+# aacrdata : AACR 논문에서 사용된 데이터
+# aacrtrain : aacrdata 중에서 train 데이터
+# aacrvalidation : aacrdata 중에서 validation 데이터
