@@ -77,7 +77,6 @@ library(e1071)
 
 # Data import -------------------------------------------------------------
 
-setwd("C:/Users/serim/Documents/academic/인턴/BIBS/MRM/DL_classification")
 aacrdata = readxl::read_excel('Data/aacr_supplementary_data.xlsx')
 rawdata = readr::read_csv("Data/rawdata.csv", col_types = cols(
   X = col_character(),
